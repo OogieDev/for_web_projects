@@ -154,6 +154,8 @@ function exportXml($a, $b) {
 
     foreach ($productsDb->fetchAll() as $product) {
         $singleProductXml = $productsXml->appendChild($xml->createElement('Продукт'));
+        $singleProductXml->setAttribute('Код', $product['code']);
+        $singleProductXml->setAttribute('Название', $product['title']);
 
         /* price */
         $productPricesDb = $db->query("SELECT type, price FROM a_price WHERE product_code = {$product['code']}");
@@ -201,3 +203,5 @@ function exportXml($a, $b) {
 
     $xml->save($a);
 }
+
+exportXml('output.xml', 'Новая');

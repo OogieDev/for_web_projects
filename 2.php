@@ -17,3 +17,17 @@ function convertString($a, $b) {
 
     return $result;
 }
+
+function mySortForKey($a, $b) {
+    for ($i = 0; $i < count($a); $i++) {
+        if (false === key_exists($b, $a[$i])) {
+            throw new Exception("Key $b does not exist in array $i");
+        }
+    }
+
+    usort($a, function ($prev, $next) use ($b) {
+        return $prev[$b] > $next[$b];
+    });
+
+    return $a;
+}

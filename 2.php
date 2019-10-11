@@ -110,3 +110,94 @@ function importXml($a) {
         }
     }
 }
+
+function exportXml($a, $b) {
+    $xml = new DOMDocument();
+    $xml->encoding = 'windows-1251';
+
+    $db = getConnection();
+
+    $productsXml = $xml->appendChild($xml->createElement('Продукты'));
+
+    $categoryDb = $db->query("SELECT id FROM a_category WHERE title = '{$b}' LIMIT 1");
+    if (!$categoryDb) {
+        return;
+    }
+    $categoriesIds = [];
+    $categoryDb = $categoryDb->fetch();
+    $categoriesIds[] = $categoryDb['id'];
+
+    $categoryListDb = $db->query("SELECT id from a_category WHERE parent_id = {$categoryDb['id']}");
+    if ($categoryListDb) {
+        foreach ($categoryListDb->fetchAll() as $category) {
+            $categoriesIds[] = $category['id'];
+        }
+    }
+
+    $categoriesIdsStr = implode(',', $categoriesIds);
+
+    $productCategoryBindingsDb = $db->query("SELECT product_code FROM a_product_category WHERE category_id IN ($categoriesIdsStr)");
+    if (!$productCategoryBindingsDb) {
+        return;
+    }
+
+    $productsIds = [];
+    foreach ($productCategoryBindingsDb->fetchAll() as $binding) {
+        $productsIds[] = $binding['product_code'];
+    }
+    $productsIdsStr = implode(',', $productsIds);
+
+    $productsDb = $db->query("SELECT * FROM a_product WHERE code IN ($productsIdsStr)");
+    if (!$productsDb) {
+        return;
+    }
+
+    foreach ($productsDb->fetchAll() as $product) {
+        $singleProductXml = $productsXml->appendChild($xml->createElement('Продукт'));
+
+        /* price */
+        $productPricesDb = $db->query("SELECT type, price FROM a_price WHERE product_code = {$product['code']}");
+
+        if ($productPricesDb) {
+            foreach ($productPricesDb->fetchAll() as $price) {
+                $productPrice = $singleProductXml->appendChild($xml->createElement('Цена'));
+                $productPrice->setAttribute('Тип', $price['type']);
+                $productPrice->nodeValue = $price['price'];
+            }
+        }
+
+        /* property */
+        $productPropertiesDb = $db->query("SELECT id, title, property from a_property WHERE product_code = {$product['code']}");
+        $productProperties = $singleProductXml->appendChild($xml->createElement('Свойства'));
+
+        if ($productPropertiesDb) {
+            foreach ($productPropertiesDb->fetchAll() as $property) {
+                $productProperty = $productProperties->appendChild($xml->createElement($property['title']));
+                $productProperty->nodeValue = $property['property'];
+
+                $subPropertyDb = $db->query("SELECT title, value FROM a_subproperty WHERE property_id = {$property['id']}");
+                if ($subPropertyDb) {
+                    foreach ($subPropertyDb as $subProperty) {
+                        $productProperty->setAttribute($subProperty['title'], $subProperty['value']);
+                    }
+                }
+            }
+        }
+
+        /* product properties */
+        $productCategoriesXml = $singleProductXml->appendChild($xml->createElement("Разделы"));
+        $bindingCategoriesDb = $db->query("SELECT category_id FROM a_product_category WHERE product_code = {$product['code']}");
+        if ($bindingCategoriesDb) {
+            foreach ($bindingCategoriesDb->fetchAll() as $category) {
+
+                $productCategoryDb = $db->query("SELECT title FROM a_category WHERE id = {$category['category_id']}");
+                if ($productCategoryDb) {
+                    $productCategoryXml = $productCategoriesXml->appendChild($xml->createElement('Раздел'));
+                    $productCategoryXml->nodeValue = $productCategoryDb->fetch()['title'];
+                }
+            }
+        }
+    }
+
+    $xml->save($a);
+}

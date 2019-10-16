@@ -123,18 +123,18 @@ class NewBase
     }
 }
 
-class newView extends NewBase
+class NewView extends NewBase
 {
     private $type = null;
     private $property = null;
 // Данный метод реализован в родительском классе
 //    /**
-//     * @return newView
+//     * @return NewView
 //     */
-//    static public function load(string $value): newBase
+//    static public function load(string $value): NewBase
 //    {
 //        $arValue = explode(':', $value);
-//        return (new newBase($arValue[0]))
+//        return (new NewBase($arValue[0]))
 //            ->setValue(unserialize(substr($value, strlen($arValue[0]) + 1
 //                + strlen($arValue[1]) + 1), $arValue[1]))
 //            ->setProperty(unserialize(substr($value, strlen($arValue[0]) + 1
@@ -159,7 +159,7 @@ class newView extends NewBase
 // В родительском классе реализация этого метода возвращает длинну сериализированной строки. Не вижу смысла переопределять данный метод.
 //    private function setSize()
 //    {
-//        if ($this->value instanceof newBase) {
+//        if ($this->value instanceof NewBase) {
 //            $this->size = $this->value->getSize() + strlen($this->property);
 //        } elseif ($this->type == 'test') {
 //            $this->size = parent::getSize();
@@ -262,14 +262,14 @@ function custom_gettype($value): string
 $obj = new NewBase('12345');
 $obj->setValue('text');
 
-$obj2 = new \Test3\newView('O9876');
+$obj2 = new \Test3\NewView('O9876');
 $obj2->setValue($obj);
 $obj2->setProperty('field');
 $obj2->getInfo();
 
 $save = $obj2->getSave();
 
-$obj3 = newView::load($save);
+$obj3 = NewView::load($save);
 
 var_dump($obj2->getSave() == $obj3->getSave());
 

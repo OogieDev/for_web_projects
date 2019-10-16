@@ -1,76 +1,146 @@
 <?php
+
 namespace Test3;
 
-class newBase
+/*
+   Как я понял, что здесь происходит:
+    имеется 2 класса. Идет работа с сериализацией.
+    Класс NewBase - родительский. Общие поля - name, value.
+    Имеется статическая переменная $arSetName в которой хранятся уникальные имена объектов данного класса.
+    Имя передается в конструктор и если такое имя уже существует, мы делаем его уникальным добавляя число в конец строки.
+    Далее, после того как имя стало уникальным, присваиваем его объекту и добавляем в статический массив.
+    __sleep - не зря тут имеется этот метод. Так как он срабатывает при попытке сериализовать объект класса, то было принято
+    сериализовать весь объект, а не отдельное поле value, как было изначально.
+
+    Все поля классов были перенесены вверх, так более понятно, какие поля содержит класс.
+
+    Не сильно понял что должен возвращать метод getSize. В моей реализации этот метод возаращает длинну строки, которая
+    получается в результате сериализации объекта.
+
+    В методах getName, getValue, getType и тд. я убрал все лишние символы и привел к виду return $value;, а не return 'abcd*' . $value;
+
+    В целом в итоге имеем классы, которые имеют методы get, set для своих полей. Умеют сериализовать свой объект, с необходимыми полями,
+    а так-же десериализовать данные.
+
+*/
+
+class NewBase
 {
-    static private $count = 0;
+    // static private $count = 0; // Не смог сообразить для чего же нужно это поле, в конструкторе создается локальный счетчик
     static private $arSetName = [];
+    // Поля класса переносим вверх, так понятнее.
+    protected $name; // Это поле нам понадобится в классах наследниках, по этому модификатор доступа установим в protected
+    protected $value;
+    protected $size = 0; // Добавим поле size, чтобы при сериализации объекта это поле так-же записывалось
+
     /**
      * @param string $name
      */
-    function __construct(int $name = 0)
+    function __construct(string $name = "")
     {
-        if (empty($name)) {
-            while (array_search(self::$count, self::$arSetName) != false) {
-                ++self::$count;
+        /**
+         * Как я понял, в конструкторе должно присваиваться имя текущему объекту
+         * если данное имя уже есть в массиве имен объектов, то это имя мы делаем уникальным путем добавления
+         * чисел в конец строки, тоесть name1, name2, name3, name4 и тд...
+         */
+        if (array_search($name, self::$arSetName) !== false) {
+            $counter = 1; // вместо статического count создадим локальную переменную, которая будет заниматься своим делом
+            while (array_search($name . $counter, self::$arSetName)) {
+                $counter++;
             }
-            $name = self::$count;
+            $name = $name . $counter;
         }
+
         $this->name = $name;
         self::$arSetName[] = $this->name;
     }
-    private $name;
+
+    /**
+     * @param string $value
+     * @return NewBase
+     */
+    static public function load(string $value): NewBase
+    {
+        try {
+            $obj = unserialize($value);
+            if ($obj instanceof NewBase)
+                return $obj;
+            throw new \Exception('unserialize error');
+        } catch (\Exception $e) {
+            echo $e->getMessage();
+        }
+        return null;
+    }
+
     /**
      * @return string
      */
     public function getName(): string
     {
-        return '*' . $this->name  . '*';
+//        return '*' . $this->name . '*'; // Тут звездочки не нужны. Нам потребуется чистое имя.
+        return $this->name;
     }
-    protected $value;
+
     /**
      * @param mixed $value
      */
     public function setValue($value)
     {
         $this->value = $value;
+        $this->getSize(); // После получения значения класса, узнаем какая длинна этого сериализованного значения
     }
+
     /**
-     * @return string
+     * @return int
      */
-    public function getSize()
+    public function getSize(): int
     {
-        $size = strlen(serialize($this->value));
-        return strlen($size) + $size;
+//        $size = strlen(serialize($this->value)); // Тут правим следующим образом
+//        return strlen($size) + $size;
+        return $this->size;
     }
+
+    /**
+     * @return void
+     */
+    public function setSize()
+    {
+        $this->size = strlen(serialize($this)); // Тут нужно получить длинну сериализованной строки? Запишем ее в созданное нами поле класса
+    }
+
     public function __sleep()
     {
-        return ['value'];
+        return ['value', 'name', 'size']; // При сериализации экземпляра данного класса нам нужно имя, значение и размер
     }
+
     /**
      * @return string
      */
     public function getSave(): string
     {
-        $value = serialize($value);
-        return $this->name . ':' . sizeof($value) . ':' . $value;
-    }
-    /**
-     * @return newBase
-     */
-    static public function load(string $value): newBase
-    {
-        $arValue = explode(':', $value);
-        return (new newBase($arValue[0]))
-            ->setValue(unserialize(substr($value, strlen($arValue[0]) + 1
-                + strlen($arValue[1]) + 1), $arValue[1]));
+        $value = serialize($this);
+        return $value;
     }
 }
-class newView extends newBase
+
+class newView extends NewBase
 {
     private $type = null;
-    private $size = 0;
     private $property = null;
+// Данный метод реализован в родительском классе
+//    /**
+//     * @return newView
+//     */
+//    static public function load(string $value): newBase
+//    {
+//        $arValue = explode(':', $value);
+//        return (new newBase($arValue[0]))
+//            ->setValue(unserialize(substr($value, strlen($arValue[0]) + 1
+//                + strlen($arValue[1]) + 1), $arValue[1]))
+//            ->setProperty(unserialize(substr($value, strlen($arValue[0]) + 1
+//                + strlen($arValue[1]) + 1 + $arValue[1])));
+//    }
+
     /**
      * @param mixed $value
      */
@@ -80,97 +150,107 @@ class newView extends newBase
         $this->setType();
         $this->setSize();
     }
+
+    private function setType()
+    {
+        $this->type = custom_gettype($this->value);
+    }
+
+// В родительском классе реализация этого метода возвращает длинну сериализированной строки. Не вижу смысла переопределять данный метод.
+//    private function setSize()
+//    {
+//        if ($this->value instanceof newBase) {
+//            $this->size = $this->value->getSize() + strlen($this->property);
+//        } elseif ($this->type == 'test') {
+//            $this->size = parent::getSize();
+//        } else {
+//            $this->size = strlen($this->value);
+//        }
+//    }
+
+    /**
+     * @param $value
+     */
     public function setProperty($value)
     {
         $this->property = $value;
-        return $this;
     }
-    private function setType()
-    {
-        $this->type = gettype($this->value);
-    }
-    private function setSize()
-    {
-        if (is_subclass_of($this->value, "Test3\newView")) {
-            $this->size = parent::getSize() + 1 + strlen($this->property);
-        } elseif ($this->type == 'test') {
-            $this->size = parent::getSize();
-        } else {
-            $this->size = strlen($this->value);
-        }
-    }
+
     /**
-     * @return string
+     * @return array
      */
     public function __sleep()
     {
-        return ['property'];
+        return ['name', 'value', 'size', 'property', 'type'];
     }
+
+    /**
+     * @return void
+     * */
+    public function getInfo()
+    {
+        try {
+            echo "============<br>
+                | name: $this->name <br>
+                | type: $this->type <br>
+                | property: $this->property <br>
+                ============<br>
+            ";
+
+        } catch (\Exception $exc) {
+            echo 'Error: ' . $exc->getMessage();
+        }
+    }
+
     /**
      * @return string
+     * @throws \Exception
      */
-    public function getName(): string
+    public function getName(): string // Имя у нас строка, так что возвращаемый тип соответсвенно строка
     {
         if (empty($this->name)) {
-            throw new Exception('The object doesn\'t have name');
+            throw new \Exception('The object doesn\'t have name');
         }
-        return '"' . $this->name  . '": ';
+        return $this->name; // Возвращаем только имя, не думаю, что какое либо "украшение" строки приветствуется в get методах
     }
+
     /**
      * @return string
      */
     public function getType(): string
     {
-        return ' type ' . $this->type  . ';';
+        return $this->type; // Ситуация аналогична ситуации метода выше
     }
-    /**
-     * @return string
-     */
-    public function getSize(): string
-    {
-        return ' size ' . $this->size . ';';
-    }
-    public function getInfo()
-    {
-        try {
-            echo $this->getName()
-                . $this->getType()
-                . $this->getSize()
-                . "\r\n";
-        } catch (Exception $exc) {
-            echo 'Error: ' . $exc->getMessage();
-        }
-    }
-    /**
-     * @return string
-     */
-    public function getSave(): string
-    {
-        if ($this->type == 'test') {
-            $this->value = $this->value->getSave();
-        }
-        return parent::getSave() . serialize($this->property);
-    }
-    /**
-     * @return newView
-     */
-    static public function load(string $value): newBase
-    {
-        $arValue = explode(':', $value);
-        return (new newBase($arValue[0]))
-            ->setValue(unserialize(substr($value, strlen($arValue[0]) + 1
-                + strlen($arValue[1]) + 1), $arValue[1]))
-            ->setProperty(unserialize(substr($value, strlen($arValue[0]) + 1
-                + strlen($arValue[1]) + 1 + $arValue[1])))
-            ;
-    }
+// Переопределение метода тут не нужно, так как в родительском классе есть соответствующий метод, который сериализует текущий объект
+// а дополнительные поля, которые есть у текущего класса-наследника мы перечислили в __sleep
+//    /**
+//     * @return string
+//     */
+//    public function getSave(): string
+//    {
+//        if ($this->type == 'test') {
+//            $this->value = $this->value->getSave();
+//        }
+//        return parent::getSave() . serialize($this->property);
+//    }
+
+// Данный метод так-же имеется в классе-родителе
+//    /**
+//     * @return int
+//     */
+//    public function getSize(): int
+//    {
+//        return $this->size; // Тип размера - число. Возвращаем только число, без каких-либо дополнительных символов
+//    }
 }
-function gettype($value): string
+
+// Переименуем функцию, т.к. данное имя зарезервировано
+function custom_gettype($value): string
 {
     if (is_object($value)) {
         $type = get_class($value);
         do {
-            if (strpos($type, "Test3\newBase") !== false) {
+            if (strpos($type, "Test3\\NewBase") !== false) {
                 return 'test';
             }
         } while ($type = get_parent_class($type));
@@ -179,7 +259,7 @@ function gettype($value): string
 }
 
 
-$obj = new newBase('12345');
+$obj = new NewBase('12345');
 $obj->setValue('text');
 
 $obj2 = new \Test3\newView('O9876');
